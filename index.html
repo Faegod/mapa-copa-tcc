@@ -1,1 +1,421 @@
 
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ruas pintadas para a Copa do Mundo</title>
+
+  <link rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f5f7f4;
+      color: #19352b;
+    }
+
+    header {
+      text-align: center;
+      padding: 28px 16px 12px;
+    }
+
+    header h1 {
+      margin: 0 0 10px;
+      font-size: clamp(23px, 4vw, 36px);
+    }
+
+    header p {
+      color: #586b60;
+      margin: 0;
+    }
+
+    #map {
+      width: min(100% - 24px, 1050px);
+      height: min(70vh, 650px);
+      min-height: 380px;
+      margin: 20px auto 35px;
+      background: #edf2eb;
+      border: 1px solid #d5dfd6;
+      border-radius: 16px;
+      overflow: hidden;
+    }
+
+    .leaflet-interactive {
+      cursor: pointer;
+      transition: fill 0.15s;
+    }
+
+    .hint {
+      text-align: center;
+      padding: 0 16px 24px;
+      color: #586b60;
+      font-size: 14px;
+    }
+
+    /* Janela sobre o mapa */
+    .overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 2000;
+      background: rgba(12, 25, 19, 0.65);
+      padding: 18px;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .overlay.open {
+      display: flex;
+    }
+
+    .popup {
+      position: relative;
+      width: min(100%, 620px);
+      max-height: 90vh;
+      overflow-y: auto;
+      background: white;
+      border-radius: 18px;
+      box-shadow: 0 20px 60px #0004;
+    }
+
+    .close {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      z-index: 2;
+      border: none;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      font-size: 27px;
+      line-height: 1;
+      cursor: pointer;
+      background: white;
+      color: #19352b;
+      box-shadow: 0 2px 12px #0002;
+    }
+
+    .photo {
+      display: block;
+      width: 100%;
+      max-height: 350px;
+      object-fit: cover;
+      background: #edf2eb;
+      aspect-ratio: 16 / 9;
+    }
+
+    .details {
+      padding: 22px;
+    }
+
+    .tag {
+      display: inline-block;
+      background: #e4f3e8;
+      color: #22623b;
+      padding: 6px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: bold;
+    }
+
+    .details h2 {
+      margin: 12px 0 8px;
+      font-size: 25px;
+    }
+
+    .details p {
+      line-height: 1.6;
+      color: #40564a;
+      white-space: pre-line;
+    }
+
+    .source {
+      font-size: 12px;
+      overflow-wrap: anywhere;
+    }
+
+    footer {
+      text-align: center;
+      padding: 18px;
+      color: #68786e;
+      font-size: 12px;
+    }
+
+    @media (max-width: 500px) {
+      #map { min-height: 340px; }
+      .details { padding: 17px; }
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>Ruas pintadas para a Copa do Mundo</h1>
+    <p>Selecione um estado para conhecer as ruas e suas histórias.</p>
+  </header>
+
+  <div id="map" aria-label="Mapa interativo dos estados brasileiros"></div>
+
+  <p class="hint">
+    Clique em um estado para visualizar a fotografia e a legenda.
+  </p>
+
+  <div class="overlay" id="overlay"
+       role="dialog" aria-modal="true"
+       aria-labelledby="popupTitle">
+    <article class="popup">
+      <button class="close" id="close"
+              aria-label="Fechar janela">&times;</button>
+      <img class="photo" id="photo" alt="">
+      <div class="details">
+        <span class="tag" id="stateTag"></span>
+        <h2 id="popupTitle"></h2>
+        <p id="caption"></p>
+        <p class="source" id="source"></p>
+      </div>
+    </article>
+  </div>
+
+  <footer>
+    Projeto acadêmico · Fotografias e legendas conforme as fontes do artigo
+  </footer>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script>
+    // Troque os exemplos abaixo pelas informações do artigo.
+    // As fotos devem ficar na pasta "fotos" do repositório.
+
+    const estados = {
+      AC: { nome: "Acre", foto: "fotos/AC.jpg",
+        rua: "Preencher com o nome da rua",
+        legenda: "Adicionar a legenda documentada no artigo.",
+        fonte: "Informar a fonte da fotografia." },
+      AL: { nome: "Alagoas", foto: "fotos/AL.jpg",
+        rua: "Preencher com o nome da rua",
+        legenda: "Adicionar a legenda documentada no artigo.",
+        fonte: "Informar a fonte da fotografia." },
+      AP: { nome: "Amapá", foto: "fotos/AP.jpg",
+        rua: "Preencher com o nome da rua",
+        legenda: "Adicionar a legenda documentada no artigo.",
+        fonte: "Informar a fonte da fotografia." },
+      AM: { nome: "Amazonas", foto: "fotos/AM.jpg",
+        rua: "Preencher com o nome da rua",
+        legenda: "Adicionar a legenda documentada no artigo.",
+        fonte: "Informar a fonte da fotografia." },
+      BA: { nome: "Bahia", foto: "fotos/BA.jpg",
+        rua: "Preencher com o nome da rua",
+        legenda: "Adicionar a legenda documentada no artigo.",
+        fonte: "Informar a fonte da fotografia." },
+      CE: { nome: "Ceará", foto: "fotos/CE.jpg",
+        rua: "Preencher com o nome da rua",
+        legenda: "Adicionar a legenda documentada no artigo.",
+        fonte: "Informar a fonte da fotografia." },
+      DF: { nome: "Distrito Federal", foto: "fotos/DF.jpg",
+        rua: "Preencher com o nome da rua",
+        legenda: "Adicionar a legenda documentada no artigo.",
+        fonte: "Informar a fonte da fotografia." },
+      ES: { nome: "Espírito Santo", foto: "fotos/ES.jpg",
+        rua: "Preencher com o nome da rua",
+        legenda: "Adicionar a legenda documentada no artigo.",
+        fonte: "Informar a fonte da fotografia." },
+      GO: { nome: "Goiás", foto: "fotos/GO.jpg",
+        rua: "Preencher com o nome da rua",
+        legenda: "Adicionar a legenda documentada no artigo.",
+        fonte: "Informar a fonte da fotografia." },
+      MA: { nome: "Maranhão", foto: "fotos/MA.jpg",
+        rua: "Preencher com o nome da rua",
+        legenda: "Adicionar a legenda documentada no artigo.",
+        fonte: "Informar a fonte da fotografia." },
+      MT: { nome: "Mato Grosso", foto: "fotos/MT.jpg",
+        rua: "Preencher com o nome da rua",
+        legenda: "Adicionar a legenda documentada no artigo.",
+        fonte: "Informar a fonte da fotografia." },
+      MS: { nome: "Mato Grosso do Sul", foto: "fotos/MS.jpg",
+        rua: "Preencher com o nome da rua",
+        legenda: "Adicionar a legenda documentada no artigo.",
+        fonte: "Informar a fonte da fotografia." },
+      MG: { nome: "Minas Gerais", foto: "fotos/MG.jpg",
+        rua: "Preencher com o nome da rua",
+        legenda: "Adicionar a legenda documentada no artigo.",
+        fonte: "Informar a fonte da fotografia." },
+      PA: { nome: "Pará", foto: "fotos/PA.jpg",
+        rua: "Preencher com o nome da rua",
+        legenda: "Adicionar a legenda documentada no artigo.",
+        fonte: "Informar a fonte da fotografia." },
+      PB: { nome: "Paraíba", foto: "fotos/PB.jpg",
+        rua: "Preencher com o nome da rua",
+        legenda: "Adicionar a legenda documentada no artigo.",
+        fonte: "Informar a fonte da fotografia." },
+      PR: { nome: "Paraná", foto: "fotos/PR.jpg",
+        rua: "Preencher com o nome da rua",
+        legenda: "Adicionar a legenda documentada no artigo.",
+        fonte: "Informar a fonte da fotografia." },
+      PE: { nome: "Pernambuco", foto: "fotos/PE.jpg",
+        rua: "Preencher com o nome da rua",
+        legenda: "Adicionar a legenda documentada no artigo.",
+        fonte: "Informar a fonte da fotografia." },
+      PI: { nome: "Piauí", foto: "fotos/PI.jpg",
+        rua: "Preencher com o nome da rua",
+        legenda: "Adicionar a legenda documentada no artigo.",
+        fonte: "Informar a fonte da fotografia." },
+      RJ: { nome: "Rio de Janeiro", foto: "fotos/RJ.jpg",
+        rua: "Preencher com o nome da rua",
+        legenda: "Adicionar a legenda documentada no artigo.",
+        fonte: "Informar a fonte da fotografia." },
+      RN: { nome: "Rio Grande do Norte", foto: "fotos/RN.jpg",
+        rua: "Preencher com o nome da rua",
+        legenda: "Adicionar a legenda documentada no artigo.",
+        fonte: "Informar a fonte da fotografia." },
+      RS: { nome: "Rio Grande do Sul", foto: "fotos/RS.jpg",
+        rua: "Preencher com o nome da rua",
+        legenda: "Adicionar a legenda documentada no artigo.",
+        fonte: "Informar a fonte da fotografia." },
+      RO: { nome: "Rondônia", foto: "fotos/RO.jpg",
+        rua: "Preencher com o nome da rua",
+        legenda: "Adicionar a legenda documentada no artigo.",
+        fonte: "Informar a fonte da fotografia." },
+      RR: { nome: "Roraima", foto: "fotos/RR.jpg",
+        rua: "Preencher com o nome da rua",
+        legenda: "Adicionar a legenda documentada no artigo.",
+        fonte: "Informar a fonte da fotografia." },
+      SC: { nome: "Santa Catarina", foto: "fotos/SC.jpg",
+        rua: "Preencher com o nome da rua",
+        legenda: "Adicionar a legenda documentada no artigo.",
+        fonte: "Informar a fonte da fotografia." },
+      SP: { nome: "São Paulo", foto: "fotos/SP.jpg",
+        rua: "Preencher com o nome da rua",
+        legenda: "Adicionar a legenda documentada no artigo.",
+        fonte: "Informar a fonte da fotografia." },
+      SE: { nome: "Sergipe", foto: "fotos/SE.jpg",
+        rua: "Preencher com o nome da rua",
+        legenda: "Adicionar a legenda documentada no artigo.",
+        fonte: "Informar a fonte da fotografia." },
+      TO: { nome: "Tocantins", foto: "fotos/TO.jpg",
+        rua: "Preencher com o nome da rua",
+        legenda: "Adicionar a legenda documentada no artigo.",
+        fonte: "Informar a fonte da fotografia." }
+    };
+
+    // Relaciona o nome do estado no GeoJSON à sua sigla.
+    const siglasPorNome = Object.fromEntries(
+      Object.entries(estados).map(([sigla, estado]) =>
+        [estado.nome.normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "").toLowerCase(), sigla]
+      )
+    );
+
+    const map = L.map("map", {
+      zoomControl: true,
+      scrollWheelZoom: false,
+      attributionControl: true
+    });
+
+    const overlay = document.getElementById("overlay");
+    const closeButton = document.getElementById("close");
+
+    function abrirEstado(sigla) {
+      const estado = estados[sigla];
+      if (!estado) return;
+
+      document.getElementById("stateTag").textContent =
+        estado.nome + " · " + sigla;
+      document.getElementById("popupTitle").textContent = estado.rua;
+      document.getElementById("caption").textContent =
+        estado.legenda;
+      document.getElementById("source").textContent =
+        "Fonte: " + estado.fonte;
+
+      const photo = document.getElementById("photo");
+      photo.onerror = () => {
+        photo.onerror = null;
+        photo.removeAttribute("src");
+        photo.alt = "Adicione a fotografia em " + estado.foto;
+      };
+      photo.alt = estado.rua + " — " + estado.nome;
+      photo.src = estado.foto;
+
+      overlay.classList.add("open");
+      closeButton.focus();
+    }
+
+    function fecharPopup() {
+      overlay.classList.remove("open");
+    }
+
+    closeButton.addEventListener("click", fecharPopup);
+
+    overlay.addEventListener("click", event => {
+      if (event.target === overlay) fecharPopup();
+    });
+
+    document.addEventListener("keydown", event => {
+      if (event.key === "Escape") fecharPopup();
+    });
+
+    // Mapa geográfico dos estados brasileiros.
+    const geoJsonUrl =
+      "https://raw.githubusercontent.com/codeforgermany/" +
+      "click_that_hood/main/public/data/brazil-states.geojson";
+
+    fetch(geoJsonUrl)
+      .then(response => {
+        if (!response.ok) throw new Error("Falha ao carregar o mapa.");
+        return response.json();
+      })
+      .then(geojson => {
+        const layer = L.geoJSON(geojson, {
+          style: {
+            color: "#ffffff",
+            weight: 1.5,
+            fillColor: "#82b99a",
+            fillOpacity: 1
+          },
+
+          onEachFeature: (feature, stateLayer) => {
+            const nome = String(feature.properties.name || "")
+              .normalize("NFD")
+              .replace(/[\u0300-\u036f]/g, "")
+              .toLowerCase();
+
+            const sigla = siglasPorNome[nome];
+
+            stateLayer.bindTooltip(
+              sigla ? estados[sigla].nome : feature.properties.name
+            );
+
+            stateLayer.on({
+              mouseover: event => {
+                event.target.setStyle({
+                  fillColor: "#f2ca55",
+                  weight: 2.5
+                });
+                event.target.bringToFront();
+              },
+              mouseout: event => {
+                layer.resetStyle(event.target);
+              },
+              click: () => {
+                if (sigla) abrirEstado(sigla);
+              }
+            });
+          }
+        }).addTo(map);
+
+        map.fitBounds(layer.getBounds(), { padding: [12, 12] });
+      })
+      .catch(error => {
+        console.error(error);
+        document.getElementById("map").innerHTML =
+          "<p style='padding:24px'>Não foi possível carregar o mapa. " +
+          "Verifique sua conexão e tente novamente.</p>";
+      });
+  </script>
+</body>
+</html>
+
